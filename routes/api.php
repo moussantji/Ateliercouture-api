@@ -15,6 +15,13 @@ use App\Http\Controllers\API\ProfileController;
 */
 
 // 🧑‍💻 Authentification
+Route::get('/login', function () {
+    return response()->json([
+        'message' => 'Utilisez POST /api/login avec email + password.',
+        'test_admin' => ['email' => 'contact@coutureatelier.com', 'password' => 'password'],
+        'test_client' => ['email' => 'client@test.com', 'password' => 'password'],
+    ]);
+});
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/auth/google', [AuthController::class, 'google']);
@@ -42,3 +49,7 @@ Route::get('/reviews', [ReviewController::class, 'index']);
 // 👤 Profil
 Route::get('/profile', [ProfileController::class, 'show']);
 Route::put('/profile', [ProfileController::class, 'update']);
+
+// 🔐 Admin (réservé aux admins)
+Route::get('/admin/reservations', [ProfileController::class, 'allReservations'])->middleware('auth:sanctum');
+Route::get('/admin/users', [ProfileController::class, 'allUsers'])->middleware('auth:sanctum');

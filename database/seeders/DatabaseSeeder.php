@@ -18,6 +18,16 @@ class DatabaseSeeder extends Seeder
             'email' => 'contact@coutureatelier.com',
             'phone' => '+223 XX XX XX XX',
             'password' => bcrypt('password'),
+            'role' => 'admin',
+        ]);
+
+        // Client test
+        User::create([
+            'name' => 'Aminata Diallo',
+            'email' => 'client@test.com',
+            'phone' => '+223 70 00 00 00',
+            'password' => bcrypt('password'),
+            'role' => 'client',
         ]);
 
         // Services — icônes Ionicons
