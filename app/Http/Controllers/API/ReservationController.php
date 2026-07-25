@@ -45,10 +45,35 @@ class ReservationController extends Controller
         ], 201);
     }
 
-    public function destroy(Reservation $reservation)
+    public function show(Request $request, Reservation $reservation)
     {
+        // Seul le propriétaire ou un admin peut voir
+        if ($reservation->user_id !== $request->user()->id && !$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+        return response()->json($reservation->load('service'));
+    }
+
+    public function destroy(Request $request, Reservation $reservation)
+    {
+        // Seul le propriétaire ou un admin peut annuler
+        if ($reservation->user_id !== $request->user()->id && !$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Action non autorisée.'], 403);
+        }
+
         $reservation->update(['status' => 'cancelled']);
         return response()->json(['message' => 'Réservation annulée.']);
+    }
+
+    // ✅ Confirmer une réservation (admin uniquement)
+    public function confirm(Request $request, Reservation $reservation)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Action réservée aux administrateurs.'], 403);
+        }
+
+        $reservation->update(['status' => 'confirmed']);
+        return response()->json(['reservation' => $reservation->load('service'), 'message' => 'Réservation confirmée !']);
     }
 
     public function availableSlots(Request $request)
