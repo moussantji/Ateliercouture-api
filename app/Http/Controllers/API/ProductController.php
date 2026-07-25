@@ -10,34 +10,97 @@ use Illuminate\Support\Facades\Storage;
 class ProductController extends Controller
 {
     public function index(Request $request) {
-        $q = Product::orderBy('sort_order');
-        if ($request->category && $request->category !== 'Tout') $q->where('category', $request->category);
-        if ($request->search) $q->where('name', 'like', "%{$request->search}%");
-        $products = $q->get();
-        $products->each(function ($p) { $p->makeHidden(['gradient_colors']); $p->gradient = $p->gradient_array; });
-        return response()->json($products);
+        $request->validate([
+            'category' => 'nullable|string|max:100',
+            'search' => 'nullable|string|max:100',
+        ]);
+
+        $query = Product::query()->orderBy('sort_order');
+
+        // Administrators need to manage inactive catalogue entries. Everyone
+        // else must only receive items that are actually available for sale.
+        if (!$request->user()?->isAdmin()) {
+            $query->where('is_active', true);
+        }
+
+        $category = trim((string) $request->input('category'));
+        if ($category !== '' && $category !== 'Tout') {
+            $query->where('category', $category);
+        }
+
+        $search = trim((string) $request->input('search'));
+        if ($search !== '') {
+            $query->where(function ($productQuery) use ($search) {
+                $productQuery
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        return response()->json($this->formatProducts($query->get()));
     }
 
-    public function show(Product $product) { return response()->json($product); }
+    public function show(Request $request, Product $product) {
+        if (!$product->is_active && !$request->user()?->isAdmin()) {
+            abort(404);
+        }
 
-    public function featured() {
-        return response()->json(Product::whereNotNull('badge')->orderBy('sort_order')->take(4)->get());
+        return response()->json($this->formatProduct($product));
+    }
+
+    public function featured(Request $request) {
+        $query = Product::query()->whereNotNull('badge')->orderBy('sort_order');
+
+        if (!$request->user()?->isAdmin()) {
+            $query->where('is_active', true);
+        }
+
+        return response()->json($this->formatProducts($query->take(4)->get()));
+    }
+
+    private function formatProducts($products)
+    {
+        return $products->map(fn (Product $product) => $this->formatProduct($product))->values();
+    }
+
+    private function formatProduct(Product $product): Product
+    {
+        $product->makeHidden(['gradient_colors']);
+        $product->setAttribute('gradient', $product->gradient_array);
+
+        return $product;
     }
 
     public function store(Request $request) {
         if (!$request->user()||!$request->user()->isAdmin()) return response()->json(['message'=>'Action réservée aux administrateurs.'],403);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'price' => 'required|string|max:50',
+            'category' => 'required|string|max:100',
+            'description' => 'nullable|string|max:2000',
+        ]);
+
         $p = Product::create([
-            'name'=>$request->name, 'slug'=>Str::slug($request->name.'-'.time()),
-            'price'=>$request->price, 'category'=>$request->category??'Général', 'description'=>$request->description??'',
+            ...$validated,
+            'slug'=>Str::slug($validated['name'].'-'.time()),
             'emoji'=>'shirt-outline', 'gradient_colors'=>'["#0F2038","#3A5A80"]', 'is_active'=>true,
-            'sort_order'=>Product::max('sort_order')+1,
+            'sort_order'=>(Product::max('sort_order') ?? 0) + 1,
         ]);
         return response()->json(['product'=>$p, 'message'=>'Produit créé !'], 201);
     }
 
     public function update(Request $request, Product $product) {
         if (!$request->user()||!$request->user()->isAdmin()) return response()->json(['message'=>'Action réservée aux administrateurs.'],403);
-        $product->update($request->only(['name','price','category','description']));
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'price' => 'sometimes|required|string|max:50',
+            'category' => 'sometimes|required|string|max:100',
+            'description' => 'nullable|string|max:2000',
+        ]);
+
+        $product->update($validated);
         return response()->json(['product'=>$product->fresh(), 'message'=>'Produit mis à jour !']);
     }
 
@@ -59,6 +122,6 @@ class ProductController extends Controller
         if ($product->image) Storage::disk('public')->delete($product->image);
         $path = $request->file('image')->store('products', 'public');
         $product->update(['image'=>$path]);
-        return response()->json(['product'=>$product, 'image_url'=>url('storage/'.$path), 'message'=>'Image téléchargée !']);
+        return response()->json(['product' => $product->fresh(), 'image_url' => $product->fresh()->image_url, 'message' => 'Image téléchargée !']);
     }
 }

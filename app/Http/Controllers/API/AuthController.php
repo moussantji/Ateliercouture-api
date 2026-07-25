@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -19,13 +20,13 @@ class AuthController extends Controller
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'password' => bcrypt($request->password),
+            'name' => $request->string('name')->trim()->value(),
+            'email' => strtolower($request->string('email')->trim()->value()),
+            'phone' => $request->input('phone'),
+            'password' => Hash::make($request->input('password')),
         ]);
 
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $token = $this->issueMobileToken($user, 'mobile-app');
 
         return response()->json([
             'user' => $user,
@@ -41,16 +42,16 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', strtolower(trim((string) $request->input('email'))))->first();
 
-        if (!$user || !password_verify($request->password, $user->password)) {
+        if (!$user || !Hash::check($request->input('password'), $user->password)) {
             return response()->json([
                 'message' => 'Les identifiants sont incorrects.',
                 'errors' => ['email' => ['Email ou mot de passe invalide.']]
             ], 401);
         }
 
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $token = $this->issueMobileToken($user, 'mobile-app');
 
         return response()->json([
             'user' => $user,
@@ -69,7 +70,7 @@ class AuthController extends Controller
         ]);
 
         // Vérifier le token Google via l'API Google
-        $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+        $response = Http::timeout(5)->get('https://oauth2.googleapis.com/tokeninfo', [
             'id_token' => $request->id_token,
         ]);
 
@@ -81,27 +82,35 @@ class AuthController extends Controller
 
         $googleUser = $response->json();
 
-        // Vérifier l'audience (client ID)
-        $clientId = config('services.google.client_id');
-        if ($clientId && ($googleUser['aud'] ?? '') !== $clientId) {
+        $clientIds = config('services.google.client_ids', []);
+        $issuer = $googleUser['iss'] ?? '';
+        $emailVerified = filter_var($googleUser['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (!$emailVerified || !in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true) || !in_array($googleUser['aud'] ?? '', $clientIds, true)) {
             return response()->json([
                 'message' => 'Token Google invalide pour cette application.',
             ], 401);
         }
 
         // Trouver ou créer l'utilisateur
-        $user = User::where('email', $googleUser['email'])->first();
+        $user = User::where('email', strtolower($googleUser['email']))->first();
 
         if (!$user) {
             $user = User::create([
                 'name' => $googleUser['name'] ?? $googleUser['email'],
-                'email' => $googleUser['email'],
+                'email' => strtolower($googleUser['email']),
                 'google_id' => $googleUser['sub'],
                 'avatar' => $googleUser['picture'] ?? null,
-                'password' => bcrypt(Str::random(32)),
+                'password' => Hash::make(Str::random(32)),
             ]);
         } else {
-            // Mettre à jour google_id si nécessaire
+            // A previously linked account must keep the same Google subject.
+            if ($user->google_id && $user->google_id !== $googleUser['sub']) {
+                return response()->json([
+                    'message' => 'Ce compte est déjà associé à un autre profil Google.',
+                ], 409);
+            }
+
             if (!$user->google_id) {
                 $user->update([
                     'google_id' => $googleUser['sub'],
@@ -110,7 +119,7 @@ class AuthController extends Controller
             }
         }
 
-        $token = $user->createToken('mobile-app-google')->plainTextToken;
+        $token = $this->issueMobileToken($user, 'mobile-app-google');
 
         return response()->json([
             'user' => $user,
@@ -126,7 +135,16 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()?->delete();
         return response()->json(['message' => 'Déconnexion réussie.']);
+    }
+
+    private function issueMobileToken(User $user, string $name): string
+    {
+        return $user->createToken(
+            $name,
+            ['*'],
+            now()->addDays(30),
+        )->plainTextToken;
     }
 }

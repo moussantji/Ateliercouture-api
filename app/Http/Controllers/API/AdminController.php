@@ -27,18 +27,37 @@ class AdminController extends Controller
     // Images
     public function uploadImages(Request $request, Product $product) {
         $this->checkAdmin($request);
-        $request->validate(['images'=>'required|array|max:4','images.*'=>'image|max:5120']);
-        $paths = $product->images ? json_decode($product->images, true) : [];
-        foreach ($request->file('images') as $img) $paths[] = $img->store('products', 'public');
-        $product->update(['images' => json_encode(array_slice($paths, 0, 4))]);
-        return response()->json(['product'=>$product->fresh(), 'message'=>'Images téléchargées !']);
+        $request->validate(['images' => 'required|array|min:1|max:4', 'images.*' => 'image|max:5120']);
+        $paths = is_array($product->images) ? $product->images : [];
+        $newImages = $request->file('images', []);
+
+        if (count($paths) + count($newImages) > 4) {
+            return response()->json([
+                'message' => 'Un produit peut contenir au maximum 4 photos.',
+                'errors' => ['images' => ['Supprimez une photo avant d’en ajouter une nouvelle.']],
+            ], 422);
+        }
+
+        foreach ($newImages as $image) {
+            $paths[] = $image->store('products', 'public');
+        }
+
+        $product->update(['images' => $paths]);
+        return response()->json(['product' => $product->fresh(), 'message' => 'Images téléchargées !']);
     }
 
     public function deleteImage(Request $request, Product $product, $index) {
         $this->checkAdmin($request);
-        $paths = $product->images ? json_decode($product->images, true) : [];
-        if (isset($paths[$index])) { \Storage::disk('public')->delete($paths[$index]); unset($paths[$index]); $product->update(['images'=>json_encode(array_values($paths))]); }
-        return response()->json(['product'=>$product->fresh(), 'message'=>'Image supprimée']);
+        $paths = is_array($product->images) ? $product->images : [];
+        if (!array_key_exists((int) $index, $paths)) {
+            return response()->json(['message' => 'Photo introuvable.'], 404);
+        }
+
+        \Storage::disk('public')->delete($paths[$index]);
+        unset($paths[$index]);
+        $product->update(['images' => array_values($paths)]);
+
+        return response()->json(['product' => $product->fresh(), 'message' => 'Image supprimée']);
     }
 
     // Promos
@@ -47,30 +66,59 @@ class AdminController extends Controller
     public function savePromoCode(Request $request) {
         $this->checkAdmin($request);
         $validated = $request->validate([
-            'code'=>'required|string|max:50', 'discount'=>'nullable|string|max:50',
-            'description'=>'nullable|string', 'is_active'=>'boolean',
-            'type'=>'nullable|string|in:percentage,fixed,free_delivery', 'min_amount'=>'nullable|integer|min:0',
+            'id' => 'nullable|integer|exists:promo_codes,id',
+            'code' => 'required|string|max:50',
+            'discount' => 'nullable|string|max:50',
+            'description' => 'nullable|string|max:1000',
+            'is_active' => 'nullable|boolean',
+            'type' => 'required|in:percentage,fixed,free_delivery',
+            'min_amount' => 'nullable|integer|min:0',
         ]);
-        $validated['is_active'] = $request->boolean('is_active', true);
 
-        if ($request->id) {
-            $promo = PromoCode::findOrFail($request->id); $promo->update($validated);
+        if ($validated['type'] !== 'free_delivery' && blank($validated['discount'] ?? null)) {
+            return response()->json([
+                'message' => 'Une réduction est requise pour ce type de promotion.',
+                'errors' => ['discount' => ['La réduction est obligatoire.']],
+            ], 422);
+        }
+
+        $validated['code'] = strtoupper(trim($validated['code']));
+        $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['min_amount'] = $validated['min_amount'] ?? 0;
+        unset($validated['id']);
+
+        if ($request->filled('id')) {
+            $promo = PromoCode::findOrFail($request->integer('id'));
+            $promo->update($validated);
         } else {
+            $request->validate(['code' => 'unique:promo_codes,code']);
             $promo = PromoCode::create($validated);
         }
         return response()->json(['promo'=>$promo->fresh(), 'message'=>'Code promo enregistré !']);
     }
 
-    public function deletePromoCode($id) { PromoCode::findOrFail($id)->delete(); return response()->json(['message'=>'Code promo supprimé']); }
+    public function deletePromoCode(Request $request, $id) {
+        $this->checkAdmin($request);
+        PromoCode::findOrFail($id)->delete();
+        return response()->json(['message'=>'Code promo supprimé']);
+    }
 
     // Settings
     public function getSettings() { return response()->json(ShopSetting::pluck('value','key')->toArray()); }
 
     public function saveSettings(Request $request) {
         $this->checkAdmin($request);
-        foreach ($request->only(['whatsapp_number','phone_number','address','hours']) as $k=>$v) {
-            if ($v) ShopSetting::updateOrCreate(['key'=>$k], ['value'=>$v]);
+        $validated = $request->validate([
+            'whatsapp_number' => 'sometimes|nullable|string|max:30',
+            'phone_number' => 'sometimes|nullable|string|max:30',
+            'address' => 'sometimes|nullable|string|max:500',
+            'hours' => 'sometimes|nullable|string|max:255',
+        ]);
+
+        foreach ($validated as $key => $value) {
+            ShopSetting::updateOrCreate(['key' => $key], ['value' => $value]);
         }
+
         return response()->json(['message'=>'Paramètres enregistrés !']);
     }
 
@@ -79,7 +127,12 @@ class AdminController extends Controller
 
     public function updateOrderStatus(Request $request, $id) {
         $this->checkAdmin($request);
-        $order = Order::findOrFail($id); $order->update(['status'=>$request->status??'pending']);
-        return response()->json(['order'=>$order, 'message'=>'Statut mis à jour']);
+        $validated = $request->validate([
+            'status' => 'required|in:pending,confirmed,processing,completed,cancelled',
+        ]);
+
+        $order = Order::findOrFail($id);
+        $order->update($validated);
+        return response()->json(['order'=>$order->fresh(), 'message'=>'Statut mis à jour']);
     }
 }

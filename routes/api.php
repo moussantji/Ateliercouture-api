@@ -13,9 +13,9 @@ Route::get('/login', function () {
     return response()->json(['message'=>'Utilisez POST /api/login', 'test_admin'=>['email'=>'contact@coutureatelier.com','password'=>'password'],'test_client'=>['email'=>'client@test.com','password'=>'password']]);
 });
 
-Route::post('/register', [AuthController::class,'register']);
-Route::post('/login', [AuthController::class,'login']);
-Route::post('/auth/google', [AuthController::class,'google']);
+Route::post('/register', [AuthController::class,'register'])->middleware('throttle:registration');
+Route::post('/login', [AuthController::class,'login'])->middleware('throttle:login');
+Route::post('/auth/google', [AuthController::class,'google'])->middleware('throttle:google-auth');
 Route::post('/logout', [AuthController::class,'logout'])->middleware('auth:sanctum');
 Route::get('/user', [AuthController::class,'user'])->middleware('auth:sanctum');
 
@@ -35,33 +35,38 @@ Route::get('/settings', [AdminController::class,'getSettings']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reservations', [ReservationController::class,'index']);
     Route::get('/reservations/{reservation}', [ReservationController::class,'show']);
+    Route::get('/orders', [OrderController::class,'index']);
     Route::delete('/reservations/{reservation}', [ReservationController::class,'destroy']);
     Route::patch('/reservations/{reservation}/confirm', [ReservationController::class,'confirm']);
     Route::get('/profile', [ProfileController::class,'show']);
     Route::put('/profile', [ProfileController::class,'update']);
 
-    Route::get('/admin/reservations', [ProfileController::class,'allReservations']);
-    Route::get('/admin/users', [ProfileController::class,'allUsers']);
-    Route::get('/admin/categories', [AdminController::class,'getCategories']);
+    // Every back-office operation requires an authenticated administrator.
+    // Controller checks remain as defense in depth for direct reuse.
+    Route::middleware('admin')->prefix('admin')->group(function () {
+        Route::get('/reservations', [ProfileController::class,'allReservations']);
+        Route::get('/users', [ProfileController::class,'allUsers']);
+        Route::get('/categories', [AdminController::class,'getCategories']);
 
-    Route::post('/admin/services', [ServiceController::class,'store']);
-    Route::put('/admin/services/{service}', [ServiceController::class,'update']);
-    Route::patch('/admin/services/{service}/toggle', [ServiceController::class,'toggle']);
-    Route::delete('/admin/services/{service}', [ServiceController::class,'destroy']);
+        Route::post('/services', [ServiceController::class,'store']);
+        Route::put('/services/{service}', [ServiceController::class,'update']);
+        Route::patch('/services/{service}/toggle', [ServiceController::class,'toggle']);
+        Route::delete('/services/{service}', [ServiceController::class,'destroy']);
 
-    Route::post('/admin/products', [ProductController::class,'store']);
-    Route::put('/admin/products/{product}', [ProductController::class,'update']);
-    Route::patch('/admin/products/{product}/toggle', [ProductController::class,'toggle']);
-    Route::delete('/admin/products/{product}', [ProductController::class,'destroy']);
-    Route::post('/admin/products/{product}/image', [ProductController::class,'uploadImage']);
-    Route::post('/admin/products/{product}/images', [AdminController::class,'uploadImages']);
-    Route::delete('/admin/products/{product}/images/{index}', [AdminController::class,'deleteImage']);
+        Route::post('/products', [ProductController::class,'store']);
+        Route::put('/products/{product}', [ProductController::class,'update']);
+        Route::patch('/products/{product}/toggle', [ProductController::class,'toggle']);
+        Route::delete('/products/{product}', [ProductController::class,'destroy']);
+        Route::post('/products/{product}/image', [ProductController::class,'uploadImage']);
+        Route::post('/products/{product}/images', [AdminController::class,'uploadImages']);
+        Route::delete('/products/{product}/images/{index}', [AdminController::class,'deleteImage']);
 
-    Route::get('/admin/promo-codes', [AdminController::class,'getPromoCodes']);
-    Route::post('/admin/promo-codes', [AdminController::class,'savePromoCode']);
-    Route::delete('/admin/promo-codes/{id}', [AdminController::class,'deletePromoCode']);
+        Route::get('/promo-codes', [AdminController::class,'getPromoCodes']);
+        Route::post('/promo-codes', [AdminController::class,'savePromoCode']);
+        Route::delete('/promo-codes/{id}', [AdminController::class,'deletePromoCode']);
 
-    Route::get('/admin/orders', [AdminController::class,'getOrders']);
-    Route::patch('/admin/orders/{id}/status', [AdminController::class,'updateOrderStatus']);
-    Route::post('/admin/settings', [AdminController::class,'saveSettings']);
+        Route::get('/orders', [AdminController::class,'getOrders']);
+        Route::patch('/orders/{id}/status', [AdminController::class,'updateOrderStatus']);
+        Route::post('/settings', [AdminController::class,'saveSettings']);
+    });
 });
