@@ -7,7 +7,7 @@ class Product extends Model
 {
     protected $fillable = [
         'name', 'slug', 'category', 'price', 'original_price',
-        'badge', 'badge_type', 'gradient_colors', 'emoji',
+        'badge', 'badge_type', 'gradient_colors', 'emoji', 'image',
         'rating', 'description', 'is_active', 'sort_order'
     ];
 
