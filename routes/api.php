@@ -41,7 +41,9 @@ Route::get('/products/{product}', [ProductController::class, 'show']);
 Route::get('/reservations/available-slots', [ReservationController::class, 'availableSlots']);
 Route::post('/reservations', [ReservationController::class, 'store']);
 Route::get('/reservations', [ReservationController::class, 'index'])->middleware('auth:sanctum');
+Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->middleware('auth:sanctum');
 Route::delete('/reservations/{reservation}', [ReservationController::class, 'destroy'])->middleware('auth:sanctum');
+Route::patch('/reservations/{reservation}/confirm', [ReservationController::class, 'confirm'])->middleware('auth:sanctum');
 
 // 💬 Avis
 Route::get('/reviews', [ReviewController::class, 'index']);
