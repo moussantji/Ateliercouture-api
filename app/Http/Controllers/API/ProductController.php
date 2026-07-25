@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -83,6 +84,32 @@ class ProductController extends Controller
         $product->update($request->only(['name', 'price', 'category', 'description']));
         $product->refresh();
         return response()->json(['product' => $product, 'message' => 'Produit mis à jour !']);
+    }
+
+    // Image upload
+    public function uploadImage(Request $request, Product $product)
+    {
+        if (!$request->user() || !$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Action réservée aux administrateurs.'], 403);
+        }
+
+        $request->validate([
+            'image' => 'required|image|max:5120', // 5MB max
+        ]);
+
+        // Supprimer l'ancienne image
+        if ($product->image) {
+            Storage::disk('public')->delete($product->image);
+        }
+
+        $path = $request->file('image')->store('products', 'public');
+        $product->update(['image' => $path]);
+
+        return response()->json([
+            'product' => $product,
+            'image_url' => url('storage/' . $path),
+            'message' => 'Image téléchargée !'
+        ]);
     }
 
     public function toggle(Request $request, Product $product)

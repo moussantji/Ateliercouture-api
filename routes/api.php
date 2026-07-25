@@ -68,4 +68,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/admin/products/{product}', [ProductController::class, 'update']);
     Route::patch('/admin/products/{product}/toggle', [ProductController::class, 'toggle']);
     Route::delete('/admin/products/{product}', [ProductController::class, 'destroy']);
+    Route::post('/admin/products/{product}/image', [ProductController::class, 'uploadImage']);
 });
