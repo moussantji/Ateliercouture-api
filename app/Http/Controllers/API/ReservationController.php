@@ -7,13 +7,9 @@ use Illuminate\Http\Request;
 
 class ReservationController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth:sanctum')->except(['store', 'availableSlots']);
-    }
-
     public function index(Request $request)
     {
+        if (!$request->user()) return response()->json(['message' => 'Non authentifié.'], 401);
         return response()->json(
             Reservation::where('user_id', $request->user()->id)
                 ->with('service')
@@ -36,7 +32,6 @@ class ReservationController extends Controller
 
         $validated['user_id'] = $request->user()?->id;
         $validated['status'] = 'pending';
-
         $reservation = Reservation::create($validated);
 
         return response()->json([
@@ -47,7 +42,7 @@ class ReservationController extends Controller
 
     public function show(Request $request, Reservation $reservation)
     {
-        // Seul le propriétaire ou un admin peut voir
+        if (!$request->user()) return response()->json(['message' => 'Non authentifié.'], 401);
         if ($reservation->user_id !== $request->user()->id && !$request->user()->isAdmin()) {
             return response()->json(['message' => 'Accès non autorisé.'], 403);
         }
@@ -56,22 +51,19 @@ class ReservationController extends Controller
 
     public function destroy(Request $request, Reservation $reservation)
     {
-        // Seul le propriétaire ou un admin peut annuler
+        if (!$request->user()) return response()->json(['message' => 'Non authentifié.'], 401);
         if ($reservation->user_id !== $request->user()->id && !$request->user()->isAdmin()) {
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
-
         $reservation->update(['status' => 'cancelled']);
         return response()->json(['message' => 'Réservation annulée.']);
     }
 
-    // ✅ Confirmer une réservation (admin uniquement)
     public function confirm(Request $request, Reservation $reservation)
     {
-        if (!$request->user()->isAdmin()) {
+        if (!$request->user() || !$request->user()->isAdmin()) {
             return response()->json(['message' => 'Action réservée aux administrateurs.'], 403);
         }
-
         $reservation->update(['status' => 'confirmed']);
         return response()->json(['reservation' => $reservation->load('service'), 'message' => 'Réservation confirmée !']);
     }
@@ -80,17 +72,9 @@ class ReservationController extends Controller
     {
         $date = $request->date ?? now()->format('Y-m-d');
         $slots = ['08:00', '09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
-
         $booked = Reservation::where('reservation_date', $date)
             ->whereIn('status', ['pending', 'confirmed'])
-            ->pluck('reservation_time')
-            ->toArray();
-
-        $available = array_values(array_diff($slots, $booked));
-
-        return response()->json([
-            'date' => $date,
-            'slots' => $available,
-        ]);
+            ->pluck('reservation_time')->toArray();
+        return response()->json(['date' => $date, 'slots' => array_values(array_diff($slots, $booked))]);
     }
 }
