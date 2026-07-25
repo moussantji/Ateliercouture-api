@@ -47,9 +47,23 @@ Route::delete('/reservations/{reservation}', [ReservationController::class, 'des
 Route::get('/reviews', [ReviewController::class, 'index']);
 
 // 👤 Profil
-Route::get('/profile', [ProfileController::class, 'show']);
-Route::put('/profile', [ProfileController::class, 'update']);
+Route::get('/profile', [ProfileController::class, 'show'])->middleware('auth:sanctum');
+Route::put('/profile', [ProfileController::class, 'update'])->middleware('auth:sanctum');
 
 // 🔐 Admin (réservé aux admins)
-Route::get('/admin/reservations', [ProfileController::class, 'allReservations'])->middleware('auth:sanctum');
-Route::get('/admin/users', [ProfileController::class, 'allUsers'])->middleware('auth:sanctum');
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/admin/reservations', [ProfileController::class, 'allReservations']);
+    Route::get('/admin/users', [ProfileController::class, 'allUsers']);
+    
+    // Admin - Services
+    Route::post('/admin/services', [ServiceController::class, 'store']);
+    Route::put('/admin/services/{service}', [ServiceController::class, 'update']);
+    Route::patch('/admin/services/{service}/toggle', [ServiceController::class, 'toggle']);
+    Route::delete('/admin/services/{service}', [ServiceController::class, 'destroy']);
+    
+    // Admin - Produits
+    Route::post('/admin/products', [ProductController::class, 'store']);
+    Route::put('/admin/products/{product}', [ProductController::class, 'update']);
+    Route::patch('/admin/products/{product}/toggle', [ProductController::class, 'toggle']);
+    Route::delete('/admin/products/{product}', [ProductController::class, 'destroy']);
+});
