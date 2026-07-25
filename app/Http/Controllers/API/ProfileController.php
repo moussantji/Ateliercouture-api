@@ -18,6 +18,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'user' => $user,
+            'is_admin' => $user->isAdmin(),
             'stats' => [
                 'reservations_count' => $user->reservations_count,
             ]
@@ -38,5 +39,27 @@ class ProfileController extends Controller
             'user' => $request->user(),
             'message' => 'Profil mis à jour !'
         ]);
+    }
+
+    // Admin: liste des réservations
+    public function allReservations(Request $request)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Accès réservé aux administrateurs.'], 403);
+        }
+
+        return response()->json(
+            \App\Models\Reservation::with('service')->orderBy('created_at', 'desc')->get()
+        );
+    }
+
+    // Admin: liste des utilisateurs
+    public function allUsers(Request $request)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Accès réservé aux administrateurs.'], 403);
+        }
+
+        return response()->json(\App\Models\User::all());
     }
 }
