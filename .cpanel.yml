@@ -4,3 +4,7 @@ deployment:
     - export DEPLOYPATH=/home/c2808726c/public_html/couture/
     - /bin/cp -a . $DEPLOYPATH
     - /bin/rm -rf ${DEPLOYPATH}.git ${DEPLOYPATH}.gitignore ${DEPLOYPATH}.env.example ${DEPLOYPATH}README.md ${DEPLOYPATH}.cpanel.yml
+    - /bin/rm -rf ${DEPLOYPATH}node_modules ${DEPLOYPATH}vite.config.js ${DEPLOYPATH}package.json ${DEPLOYPATH}package-lock.json
+    - /bin/chmod -R 755 $DEPLOYPATH
+    - /bin/chmod -R 775 ${DEPLOYPATH}storage ${DEPLOYPATH}bootstrap/cache
+    - composer install --no-dev -d $DEPLOYPATH 2>/dev/null || /usr/local/bin/composer install --no-dev -d $DEPLOYPATH 2>/dev/null || /usr/bin/composer install --no-dev -d $DEPLOYPATH 2>/dev/null || echo "composer not found, install manually"
