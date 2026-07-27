@@ -9,6 +9,8 @@ use App\Http\Controllers\API\ProfileController;
 use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\AdminController;
 
+use App\Http\Controllers\API\ImageController;
+
 Route::get('/login', function () {
     return response()->json(['message'=>'Utilisez POST /api/login', 'test_admin'=>['email'=>'contact@coutureatelier.com','password'=>'password'],'test_client'=>['email'=>'client@test.com','password'=>'password']]);
 });
@@ -31,15 +33,18 @@ Route::get('/reviews', [ReviewController::class,'index']);
 Route::post('/orders', [OrderController::class,'store']);
 Route::get('/promo/validate', [OrderController::class,'validatePromo']);
 Route::get('/settings', [AdminController::class,'getSettings']);
+Route::get('/img/{path}', [ImageController::class,'show'])->where('path', '.*');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reservations', [ReservationController::class,'index']);
     Route::get('/reservations/{reservation}', [ReservationController::class,'show']);
     Route::get('/orders', [OrderController::class,'index']);
+    Route::patch('/orders/{order}/cancel', [OrderController::class,'cancel']);
     Route::delete('/reservations/{reservation}', [ReservationController::class,'destroy']);
     Route::patch('/reservations/{reservation}/confirm', [ReservationController::class,'confirm']);
     Route::get('/profile', [ProfileController::class,'show']);
     Route::put('/profile', [ProfileController::class,'update']);
+    Route::post('/reviews', [ReviewController::class,'store']);
 
     // Every back-office operation requires an authenticated administrator.
     // Controller checks remain as defense in depth for direct reuse.
@@ -67,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/orders', [AdminController::class,'getOrders']);
         Route::patch('/orders/{id}/status', [AdminController::class,'updateOrderStatus']);
+        Route::patch('/orders/{id}/mark-paid', [AdminController::class,'markOrderPaid']);
         Route::post('/settings', [AdminController::class,'saveSettings']);
     });
 });

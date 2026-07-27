@@ -7,6 +7,9 @@ use App\Models\PromoCode;
 use App\Models\ShopSetting;
 use App\Models\Order;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\OrderStatusMail;
 
 class AdminController extends Controller
 {
@@ -43,6 +46,11 @@ class AdminController extends Controller
         }
 
         $product->update(['images' => $paths]);
+
+        if (!$product->image && !empty($paths)) {
+            $product->update(['image' => $paths[0]]);
+        }
+
         return response()->json(['product' => $product->fresh(), 'message' => 'Images téléchargées !']);
     }
 
@@ -53,9 +61,15 @@ class AdminController extends Controller
             return response()->json(['message' => 'Photo introuvable.'], 404);
         }
 
-        \Storage::disk('public')->delete($paths[$index]);
+        $removed = $paths[$index];
+        \Storage::disk('public')->delete($removed);
         unset($paths[$index]);
-        $product->update(['images' => array_values($paths)]);
+        $paths = array_values($paths);
+        $product->update(['images' => $paths]);
+
+        if ($product->image === $removed) {
+            $product->update(['image' => $paths[0] ?? null]);
+        }
 
         return response()->json(['product' => $product->fresh(), 'message' => 'Image supprimée']);
     }
@@ -83,15 +97,19 @@ class AdminController extends Controller
         }
 
         $validated['code'] = strtoupper(trim($validated['code']));
-        $validated['is_active'] = $request->boolean('is_active', true);
         $validated['min_amount'] = $validated['min_amount'] ?? 0;
         unset($validated['id']);
 
         if ($request->filled('id')) {
             $promo = PromoCode::findOrFail($request->integer('id'));
+            if (!$request->has('is_active')) {
+                $validated['is_active'] = $promo->is_active;
+            } else {
+                $validated['is_active'] = $request->boolean('is_active');
+            }
             $promo->update($validated);
         } else {
-            $request->validate(['code' => 'unique:promo_codes,code']);
+            $validated['is_active'] = $request->boolean('is_active', true);
             $promo = PromoCode::create($validated);
         }
         return response()->json(['promo'=>$promo->fresh(), 'message'=>'Code promo enregistré !']);
@@ -113,6 +131,7 @@ class AdminController extends Controller
             'phone_number' => 'sometimes|nullable|string|max:30',
             'address' => 'sometimes|nullable|string|max:500',
             'hours' => 'sometimes|nullable|string|max:255',
+            'payment_methods' => 'sometimes|nullable|json',
         ]);
 
         foreach ($validated as $key => $value) {
@@ -132,7 +151,34 @@ class AdminController extends Controller
         ]);
 
         $order = Order::findOrFail($id);
-        $order->update($validated);
+        $oldStatus = $order->status;
+
+        DB::transaction(function () use ($order, $validated, $oldStatus) {
+            $order->update($validated);
+
+            if ($validated['status'] === 'cancelled' && $oldStatus !== 'cancelled') {
+                $items = is_array($order->items) ? $order->items : [];
+                foreach ($items as $item) {
+                    if (!empty($item['product_id']) && !empty($item['quantity'])) {
+                        Product::where('id', $item['product_id'])->increment('quantity', (int) $item['quantity']);
+                    }
+                }
+            }
+        });
+
+        if ($order->client_email) {
+            try {
+                Mail::to($order->client_email)->send(new OrderStatusMail($order->fresh()));
+            } catch (\Throwable $e) {}
+        }
+
         return response()->json(['order'=>$order->fresh(), 'message'=>'Statut mis à jour']);
+    }
+
+    public function markOrderPaid(Request $request, $id) {
+        $this->checkAdmin($request);
+        $order = Order::findOrFail($id);
+        $order->update(['paid_at' => $order->paid_at ? null : now()]);
+        return response()->json(['order'=>$order->fresh(), 'message'=>$order->paid_at ? '✅ Paiement marqué comme reçu' : '✅ Marqué comme non payé']);
     }
 }

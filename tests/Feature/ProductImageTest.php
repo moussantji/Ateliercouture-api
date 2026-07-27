@@ -25,7 +25,7 @@ class ProductImageTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonCount(1, 'product.images')
-            ->assertJsonPath('product.image_urls.0', url('storage/'.$product->fresh()->images[0]));
+            ->assertJsonPath('product.image_urls.0', $product->fresh()->images[0]);
 
         Storage::disk('public')->assertExists($product->fresh()->images[0]);
     }

@@ -86,9 +86,16 @@ class AuthController extends Controller
         $issuer = $googleUser['iss'] ?? '';
         $emailVerified = filter_var($googleUser['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        if (!$emailVerified || !in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true) || !in_array($googleUser['aud'] ?? '', $clientIds, true)) {
+        if (!$emailVerified || !in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true)) {
             return response()->json([
                 'message' => 'Token Google invalide pour cette application.',
+            ], 401);
+        }
+
+        // Vérifier l'audience seulement si des client IDs sont configurés
+        if (!empty($clientIds) && !in_array($googleUser['aud'] ?? '', $clientIds, true)) {
+            return response()->json([
+                'message' => 'Token Google invalide pour cette application (client_id mismatch).',
             ], 401);
         }
 

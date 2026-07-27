@@ -9,6 +9,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class ReservationController extends Controller
 {
@@ -30,6 +31,14 @@ class ReservationController extends Controller
 
     public function store(Request $request)
     {
+        // Authentifier optionnellement via Sanctum même sur route publique
+        $user = null;
+        $bearer = $request->bearerToken();
+        if ($bearer) {
+            $accessToken = PersonalAccessToken::findToken($bearer);
+            $user = $accessToken?->tokenable;
+        }
+
         $validated = $request->validate([
             'service_id' => [
                 'required',
@@ -46,12 +55,12 @@ class ReservationController extends Controller
         $bookingKey = $this->bookingKey($validated['reservation_date'], $validated['reservation_time']);
 
         try {
-            $reservation = DB::transaction(function () use ($request, $validated, $bookingKey) {
+            $reservation = DB::transaction(function () use ($request, $validated, $bookingKey, $user) {
                 // The unique booking_key is the final protection against two
                 // simultaneous requests taking the same appointment slot.
                 return Reservation::create([
                     ...$validated,
-                    'user_id' => $request->user()?->id,
+                    'user_id' => $user?->id,
                     'booking_key' => $bookingKey,
                     'status' => 'pending',
                 ]);

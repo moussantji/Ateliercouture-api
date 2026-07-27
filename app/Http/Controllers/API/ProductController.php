@@ -20,7 +20,7 @@ class ProductController extends Controller
         // Administrators need to manage inactive catalogue entries. Everyone
         // else must only receive items that are actually available for sale.
         if (!$request->user()?->isAdmin()) {
-            $query->where('is_active', true);
+            $query->where('is_active', true)->where('quantity', '>', 0);
         }
 
         $category = trim((string) $request->input('category'));
@@ -41,8 +41,10 @@ class ProductController extends Controller
     }
 
     public function show(Request $request, Product $product) {
-        if (!$product->is_active && !$request->user()?->isAdmin()) {
-            abort(404);
+        if (!$request->user()?->isAdmin()) {
+            if (!$product->is_active || $product->quantity < 1) {
+                abort(404);
+            }
         }
 
         return response()->json($this->formatProduct($product));
@@ -52,7 +54,7 @@ class ProductController extends Controller
         $query = Product::query()->whereNotNull('badge')->orderBy('sort_order');
 
         if (!$request->user()?->isAdmin()) {
-            $query->where('is_active', true);
+            $query->where('is_active', true)->where('quantity', '>', 0);
         }
 
         return response()->json($this->formatProducts($query->take(4)->get()));
@@ -79,6 +81,11 @@ class ProductController extends Controller
             'price' => 'required|string|max:50',
             'category' => 'required|string|max:100',
             'description' => 'nullable|string|max:2000',
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|max:50',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|max:50',
+            'quantity' => 'nullable|integer|min:0',
         ]);
 
         $p = Product::create([
@@ -98,6 +105,11 @@ class ProductController extends Controller
             'price' => 'sometimes|required|string|max:50',
             'category' => 'sometimes|required|string|max:100',
             'description' => 'nullable|string|max:2000',
+            'sizes' => 'nullable|array',
+            'sizes.*' => 'string|max:50',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|max:50',
+            'quantity' => 'nullable|integer|min:0',
         ]);
 
         $product->update($validated);

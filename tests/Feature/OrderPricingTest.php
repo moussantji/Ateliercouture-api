@@ -63,7 +63,7 @@ class OrderPricingTest extends TestCase
             'client_name' => 'Awa Traoré',
             'client_phone' => '+22370000000',
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
-        ])->assertUnprocessable()->assertJsonValidationErrors('items');
+        ])->assertUnprocessable()->assertJsonFragment(['message' => 'Un ou plusieurs produits ne sont plus disponibles.']);
 
         $activeProduct = $this->product([
             'name' => 'Boubou',
@@ -76,7 +76,7 @@ class OrderPricingTest extends TestCase
             'client_phone' => '+22370000000',
             'items' => [['product_id' => $activeProduct->id, 'quantity' => 1]],
             'promo_code' => 'INEXISTANT',
-        ])->assertUnprocessable()->assertJsonValidationErrors('promo_code');
+        ])->assertUnprocessable()->assertJsonFragment(['message' => 'Le code promo est invalide ou ne peut pas être appliqué à ce panier.']);
     }
 
     public function test_an_authenticated_customer_only_sees_their_own_orders(): void
@@ -113,6 +113,7 @@ class OrderPricingTest extends TestCase
             'slug' => 'robe',
             'category' => 'Robes',
             'price' => '10000 FCFA',
+            'quantity' => 99,
             'is_active' => true,
         ], $attributes));
     }

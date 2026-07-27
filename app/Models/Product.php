@@ -10,6 +10,7 @@ class Product extends Model
     protected $fillable = [
         'name', 'slug', 'category', 'price', 'original_price',
         'badge', 'badge_type', 'gradient_colors', 'emoji', 'image', 'images',
+        'sizes', 'colors', 'quantity',
         'rating', 'description', 'is_active', 'sort_order',
     ];
 
@@ -19,6 +20,9 @@ class Product extends Model
         'is_active' => 'boolean',
         'rating' => 'float',
         'images' => 'array',
+        'sizes' => 'array',
+        'colors' => 'array',
+        'quantity' => 'integer',
     ];
 
     public function getGradientArrayAttribute(): array
@@ -30,19 +34,19 @@ class Product extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        return $this->storageUrl($this->image);
+        return $this->imagePath($this->image);
     }
 
     public function getImageUrlsAttribute(): array
     {
         return collect($this->images ?? [])
-            ->map(fn ($path) => $this->storageUrl($path))
+            ->map(fn ($path) => $this->imagePath($path))
             ->filter()
             ->values()
             ->all();
     }
 
-    private function storageUrl(?string $path): ?string
+    private function imagePath(?string $path): ?string
     {
         if (!$path) {
             return null;
@@ -52,6 +56,6 @@ class Product extends Model
             return $path;
         }
 
-        return url('storage/'.ltrim($path, '/'));
+        return ltrim($path, '/');
     }
 }
