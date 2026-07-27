@@ -74,5 +74,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/orders/{id}/status', [AdminController::class,'updateOrderStatus']);
         Route::patch('/orders/{id}/mark-paid', [AdminController::class,'markOrderPaid']);
         Route::post('/settings', [AdminController::class,'saveSettings']);
+        Route::get('/logs', [AdminController::class,'getLogs']);
     });
 });

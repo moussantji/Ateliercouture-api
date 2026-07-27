@@ -181,4 +181,28 @@ class AdminController extends Controller
         $order->update(['paid_at' => $order->paid_at ? null : now()]);
         return response()->json(['order'=>$order->fresh(), 'message'=>$order->paid_at ? '✅ Paiement marqué comme reçu' : '✅ Marqué comme non payé']);
     }
+
+    public function getLogs(Request $request)
+    {
+        $this->checkAdmin($request);
+        $logFile = storage_path('logs/laravel.log');
+        if (!file_exists($logFile)) {
+            return response()->json(['logs' => '']);
+        }
+        $lines = 200;
+        $file = new \SplFileObject($logFile, 'r');
+        $file->seek(PHP_INT_MAX);
+        $totalLines = $file->key();
+        $start = max(0, $totalLines - $lines);
+        $output = '';
+        $file->seek($start);
+        for ($i = $start; $i < $totalLines; $i++) {
+            $line = $file->current();
+            if ($line !== false) {
+                $output .= $line;
+            }
+            $file->next();
+        }
+        return response()->json(['logs' => $output, 'total_lines' => $totalLines]);
+    }
 }

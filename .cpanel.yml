@@ -1,0 +1,12 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/c2808726c/public_html/couture/
+    - /bin/rsync -av --exclude='.git' --exclude='.gitignore' --exclude='.env' --exclude='node_modules' --exclude='vendor' --exclude='storage/framework/cache/data/*' --exclude='storage/logs/*' --exclude='.cpanel.yml' --exclude='README.md' ./ $DEPLOYPATH
+    - /usr/bin/composer install --no-dev --working-dir=$DEPLOYPATH 2>&1 || echo "composer install skipped"
+    - /usr/bin/php $DEPLOYPATH/artisan optimize 2>&1 || echo "optimize skipped"
+    - /usr/bin/php $DEPLOYPATH/artisan migrate --force 2>&1 || echo "migrate skipped"
+    - /usr/bin/php $DEPLOYPATH/artisan storage:link 2>&1 || echo "storage:link skipped"
+    - /bin/chmod -R 755 $DEPLOYPATH
+    - /bin/chmod -R 775 $DEPLOYPATH/storage
+    - /bin/chmod -R 775 $DEPLOYPATH/bootstrap/cache
