@@ -1,6 +1,7 @@
 <?php
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\GoogleAuthController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\ReservationController;
@@ -16,6 +17,10 @@ Route::get('/login', function () {
 Route::post('/register', [AuthController::class,'register']);
 Route::post('/login', [AuthController::class,'login']);
 Route::post('/auth/google', [AuthController::class,'google']);
+Route::get('/auth/google/status', [GoogleAuthController::class,'status']);
+Route::get('/auth/google/redirect', [GoogleAuthController::class,'redirect']);
+Route::get('/auth/google/callback', [GoogleAuthController::class,'callback']);
+Route::post('/auth/google/exchange', [GoogleAuthController::class,'exchange']);
 Route::post('/logout', [AuthController::class,'logout'])->middleware('auth:sanctum');
 Route::get('/user', [AuthController::class,'user'])->middleware('auth:sanctum');
 
