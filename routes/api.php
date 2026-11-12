@@ -11,16 +11,16 @@ use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\AdminController;
 
 Route::get('/login', function () {
-    return response()->json(['message'=>'Utilisez POST /api/login', 'test_admin'=>['email'=>'contact@coutureatelier.com','password'=>'password'],'test_client'=>['email'=>'client@test.com','password'=>'password']]);
+    return response()->json(['message'=>'Utilisez POST /api/login']);
 });
 
-Route::post('/register', [AuthController::class,'register']);
-Route::post('/login', [AuthController::class,'login']);
-Route::post('/auth/google', [AuthController::class,'google']);
+Route::post('/register', [AuthController::class,'register'])->middleware('throttle:5,1');
+Route::post('/login', [AuthController::class,'login'])->middleware('throttle:5,1');
+Route::post('/auth/google', [AuthController::class,'google'])->middleware('throttle:10,1');
 Route::get('/auth/google/status', [GoogleAuthController::class,'status']);
 Route::get('/auth/google/redirect', [GoogleAuthController::class,'redirect']);
 Route::get('/auth/google/callback', [GoogleAuthController::class,'callback']);
-Route::post('/auth/google/exchange', [GoogleAuthController::class,'exchange']);
+Route::post('/auth/google/exchange', [GoogleAuthController::class,'exchange'])->middleware('throttle:10,1');
 Route::post('/logout', [AuthController::class,'logout'])->middleware('auth:sanctum');
 Route::get('/user', [AuthController::class,'user'])->middleware('auth:sanctum');
 
@@ -45,6 +45,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [ProfileController::class,'show']);
     Route::put('/profile', [ProfileController::class,'update']);
 
+    Route::get('/orders', [OrderController::class,'index']);
+    Route::patch('/orders/{order}/cancel', [OrderController::class,'cancel']);
+    Route::post('/reviews', [ReviewController::class,'store']);
+
     Route::get('/admin/reservations', [ProfileController::class,'allReservations']);
     Route::get('/admin/users', [ProfileController::class,'allUsers']);
     Route::get('/admin/categories', [AdminController::class,'getCategories']);
@@ -68,5 +72,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/admin/orders', [AdminController::class,'getOrders']);
     Route::patch('/admin/orders/{id}/status', [AdminController::class,'updateOrderStatus']);
+    Route::patch('/admin/orders/{id}/mark-paid', [AdminController::class,'markOrderPaid']);
     Route::post('/admin/settings', [AdminController::class,'saveSettings']);
 });

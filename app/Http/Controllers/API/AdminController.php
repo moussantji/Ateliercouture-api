@@ -15,7 +15,8 @@ class AdminController extends Controller
     }
 
     // Categories existantes
-    public function getCategories() {
+    public function getCategories(Request $request) {
+        $this->checkAdmin($request);
         $productCategories = Product::whereNotNull('category')->distinct()->pluck('category');
         $serviceCategories = \App\Models\Service::whereNotNull('category')->distinct()->pluck('category');
         return response()->json([
@@ -28,7 +29,8 @@ class AdminController extends Controller
     public function uploadImages(Request $request, Product $product) {
         $this->checkAdmin($request);
         $request->validate(['images'=>'required|array|max:4','images.*'=>'image|max:5120']);
-        $paths = $product->images ? json_decode($product->images, true) : [];
+        $paths = $product->images ? (is_array($product->images) ? $product->images : json_decode($product->images, true)) : [];
+        if (!is_array($paths)) $paths = [];
         foreach ($request->file('images') as $img) $paths[] = $img->store('products', 'public');
         $product->update(['images' => json_encode(array_slice($paths, 0, 4))]);
         return response()->json(['product'=>$product->fresh(), 'message'=>'Images téléchargées !']);
@@ -36,13 +38,17 @@ class AdminController extends Controller
 
     public function deleteImage(Request $request, Product $product, $index) {
         $this->checkAdmin($request);
-        $paths = $product->images ? json_decode($product->images, true) : [];
+        $paths = $product->images ? (is_array($product->images) ? $product->images : json_decode($product->images, true)) : [];
+        if (!is_array($paths)) $paths = [];
         if (isset($paths[$index])) { \Storage::disk('public')->delete($paths[$index]); unset($paths[$index]); $product->update(['images'=>json_encode(array_values($paths))]); }
         return response()->json(['product'=>$product->fresh(), 'message'=>'Image supprimée']);
     }
 
     // Promos
-    public function getPromoCodes() { return response()->json(PromoCode::all()); }
+    public function getPromoCodes(Request $request) {
+        $this->checkAdmin($request);
+        return response()->json(PromoCode::all());
+    }
 
     public function savePromoCode(Request $request) {
         $this->checkAdmin($request);
@@ -61,25 +67,40 @@ class AdminController extends Controller
         return response()->json(['promo'=>$promo->fresh(), 'message'=>'Code promo enregistré !']);
     }
 
-    public function deletePromoCode($id) { PromoCode::findOrFail($id)->delete(); return response()->json(['message'=>'Code promo supprimé']); }
+    public function deletePromoCode(Request $request, $id) {
+        $this->checkAdmin($request);
+        PromoCode::findOrFail($id)->delete();
+        return response()->json(['message'=>'Code promo supprimé']);
+    }
 
     // Settings
     public function getSettings() { return response()->json(ShopSetting::pluck('value','key')->toArray()); }
 
     public function saveSettings(Request $request) {
         $this->checkAdmin($request);
-        foreach ($request->only(['whatsapp_number','phone_number','address','hours']) as $k=>$v) {
-            if ($v) ShopSetting::updateOrCreate(['key'=>$k], ['value'=>$v]);
+        $allowed = ['whatsapp_number','phone_number','address','hours','payment_methods'];
+        foreach ($request->only($allowed) as $k=>$v) {
+            if ($v !== null) ShopSetting::updateOrCreate(['key'=>$k], ['value' => is_string($v) ? $v : json_encode($v)]);
         }
         return response()->json(['message'=>'Paramètres enregistrés !']);
     }
 
     // Orders
-    public function getOrders() { return response()->json(Order::orderBy('created_at','desc')->get()); }
+    public function getOrders(Request $request) {
+        $this->checkAdmin($request);
+        return response()->json(Order::orderBy('created_at','desc')->get());
+    }
 
     public function updateOrderStatus(Request $request, $id) {
         $this->checkAdmin($request);
         $order = Order::findOrFail($id); $order->update(['status'=>$request->status??'pending']);
         return response()->json(['order'=>$order, 'message'=>'Statut mis à jour']);
+    }
+
+    public function markOrderPaid(Request $request, $id) {
+        $this->checkAdmin($request);
+        $order = Order::findOrFail($id);
+        $order->update(['paid_at' => now(), 'status' => $order->status === 'pending' ? 'confirmed' : $order->status]);
+        return response()->json(['order' => $order->fresh(), 'message' => 'Paiement enregistré']);
     }
 }

@@ -29,6 +29,7 @@ class ProductController extends Controller
         $p = Product::create([
             'name'=>$request->name, 'slug'=>Str::slug($request->name.'-'.time()),
             'price'=>$request->price, 'category'=>$request->category??'Général', 'description'=>$request->description??'',
+            'quantity'=>$request->quantity, 'sizes'=>$request->sizes, 'colors'=>$request->colors,
             'emoji'=>'shirt-outline', 'gradient_colors'=>'["#0F2038","#3A5A80"]', 'is_active'=>true,
             'sort_order'=>Product::max('sort_order')+1,
         ]);
@@ -37,7 +38,7 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product) {
         if (!$request->user()||!$request->user()->isAdmin()) return response()->json(['message'=>'Action réservée aux administrateurs.'],403);
-        $product->update($request->only(['name','price','category','description']));
+        $product->update($request->only(['name','price','category','description','quantity','sizes','colors']));
         return response()->json(['product'=>$product->fresh(), 'message'=>'Produit mis à jour !']);
     }
 
